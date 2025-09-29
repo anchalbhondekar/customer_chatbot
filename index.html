@@ -6,7 +6,7 @@
     <title>Voice Chatbot</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        /* Basic CSS for visibility, replace with your style.css content */
+        
         body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f4f4f4; margin: 0; }
         .chat-container { width: 400px; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
         .chat-box { height: 300px; padding: 10px; overflow-y: auto; border-bottom: 1px solid #ccc; }
@@ -41,7 +41,7 @@
         let mediaRecorder;
         let audioChunks = [];
         let audioContext;
-        let audioStream; // To hold the active stream
+        let audioStream; 
 
         function addMessage(sender, message) {
             const messageDiv = document.createElement('div');
@@ -51,55 +51,43 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // --- Core WAV Encoding Logic (The FIX for the error) ---
-        // This function takes raw audio data and manually adds the WAV header 
-        // to ensure compatibility with Python's speech_recognition.
         function encodeWAV(samples) {
             const buffer = new ArrayBuffer(44 + samples.length * 2);
             const view = new DataView(buffer);
 
-            // Function to write a string (e.g., 'RIFF')
             function writeString(view, offset, string) {
                 for (let i = 0; i < string.length; i++) {
                     view.setUint8(offset + i, string.charCodeAt(i));
                 }
             }
 
-            // Function to write a 16-bit integer (little-endian)
             function writeInt16(view, offset, i) {
                 view.setInt16(offset, i, true);
             }
 
-            // Function to write a 32-bit integer (little-endian)
             function writeInt32(view, offset, i) {
                 view.setInt32(offset, i, true);
             }
 
             const sampleRate = audioContext.sampleRate;
-            const numChannels = 1; // Assuming mono recording
+            const numChannels = 1; 
 
-            // RIFF chunk descriptor
             writeString(view, 0, 'RIFF');
-            writeInt32(view, 4, 36 + samples.length * 2); // chunk size
+            writeInt32(view, 4, 36 + samples.length * 2); 
             writeString(view, 8, 'WAVE');
 
-            // FMT sub-chunk
             writeString(view, 12, 'fmt ');
-            writeInt32(view, 16, 16);           // sub-chunk size (16 for PCM)
-            writeInt16(view, 20, 1);            // audio format (1 is PCM)
-            writeInt16(view, 22, numChannels);  // number of channels
-            writeInt32(view, 24, sampleRate);   // sample rate
-            writeInt32(view, 28, sampleRate * numChannels * 2); // byte rate
-            writeInt16(view, 32, numChannels * 2);             // block align
-            writeInt16(view, 34, 16);                           // bits per sample (16-bit)
-
-            // DATA sub-chunk
+            writeInt32(view, 16, 16);           
+            writeInt16(view, 20, 1);            
+            writeInt16(view, 22, numChannels);  
+            writeInt32(view, 24, sampleRate);   
+            writeInt32(view, 28, sampleRate * numChannels * 2); 
+            writeInt16(view, 32, numChannels * 2);             
+            writeInt16(view, 34, 16);                           
             writeString(view, 36, 'data');
-            writeInt32(view, 40, samples.length * 2); // data size
+            writeInt32(view, 40, samples.length * 2); 
 
-            // Write the actual PCM data
             for (let i = 0; i < samples.length; i++) {
-                // Scale from float (-1.0 to 1.0) to 16-bit integer (-32768 to 32767)
                 const s = Math.max(-1, Math.min(1, samples[i]));
                 view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
             }
@@ -112,7 +100,6 @@
             addMessage('user', message);
             userInput.value = '';
 
-            // 1. Send text message
             const chatResponse = await fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -121,7 +108,6 @@
             const data = await chatResponse.json();
             addMessage('bot', data.response);
 
-            // 2. Speak the bot's response
             fetch('/speak', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -148,16 +134,13 @@
         voiceInputButton.addEventListener('click', async () => {
             if (voiceInputButton.textContent === '🎤 Voice Input') {
                 try {
-                    // Initialize AudioContext if not already done
                     audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
                     audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     
-                    // Use a ScriptProcessorNode to get raw PCM data for WAV encoding
                     const source = audioContext.createMediaStreamSource(audioStream);
                     const recorder = audioContext.createScriptProcessor(4096, 1, 1);
                     
                     recorder.onaudioprocess = function(e) {
-                        // Get the raw data from the input buffer
                         const raw_samples = e.inputBuffer.getChannelData(0);
                         audioChunks.push(new Float32Array(raw_samples));
                     };
@@ -165,7 +148,6 @@
                     source.connect(recorder);
                     recorder.connect(audioContext.destination);
 
-                    // We use a flag to track recording state
                     voiceInputButton._isRecording = true;
                     voiceInputButton.textContent = '🔴 Stop Recording';
                     voiceInputButton.style.backgroundColor = 'red';
@@ -175,15 +157,12 @@
                     alert('Could not access microphone. Please ensure it is connected and permissions are granted.');
                 }
             } else {
-                // STOP RECORDING
                 voiceInputButton._isRecording = false;
                 voiceInputButton.textContent = 'Processing...';
                 voiceInputButton.style.backgroundColor = 'gray';
 
-                // 1. Disconnect the stream/nodes to stop recording
-                audioStream.getTracks().forEach(track => track.stop()); // Stop the microphone access
+                audioStream.getTracks().forEach(track => track.stop()); 
                 
-                // 2. Concatenate all Float32Arrays into a single array
                 let totalLength = audioChunks.reduce((acc, chunk) => acc + chunk.length, 0);
                 let samples = new Float32Array(totalLength);
                 let offset = 0;
@@ -191,12 +170,9 @@
                     samples.set(chunk, offset);
                     offset += chunk.length;
                 }
-                audioChunks = []; // Clear chunks for next recording
-
-                // 3. Encode the raw samples into a proper WAV Blob
+                audioChunks = []; 
                 const audioBlob = encodeWAV(samples);
                 
-                // 4. Send the Blob to the server
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'audio.wav');
 
@@ -210,7 +186,6 @@
                 .then(data => {
                     addMessage('bot', data.response);
 
-                    // Speak the bot's response
                     fetch('/speak', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
